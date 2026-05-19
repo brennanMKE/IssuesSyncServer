@@ -1,0 +1,25 @@
+# Normalize line endings on check-in; use LF in the working copy
+* text=auto eol=lf
+
+# Go source — use the golang diff driver for readable diffs
+*.go text eol=lf diff=golang
+
+# Shell scripts — must be LF
+*.sh text eol=lf
+
+# Embedded assets
+*.html text eol=lf
+*.css  text eol=lf
+*.js   text eol=lf
+
+# Migrations
+*.sql text eol=lf
+
+# Binary files — never diff or mangle
+*.png binary
+*.jpg binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.gz  binary
+*.tar binary
