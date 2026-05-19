@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Register PassKey — IssuesSyncServer</title>
+  <link rel="stylesheet" href="/admin/static/style.css">
+  <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="card">
+    <h1>Register your PassKey</h1>
+    {{if .Error}}
+    <div class="alert alert-error">{{.Error}}</div>
+    {{end}}
+    <p class="text-muted text-sm mb-2">Welcome, <strong>{{.Email}}</strong>. Register a passkey to access the admin console.</p>
+    <button id="enroll-btn" class="btn btn-primary" style="width:100%">Register PassKey</button>
+    <p class="text-muted text-sm mt-1">You will be prompted to create a passkey using your device.</p>
+  </div>
+</div>
+<script>
+(function() {
+  const opts = {{.OptionsJSON}};
+  const token = {{.Token}};
+  document.getElementById('enroll-btn').addEventListener('click', async function() {
+    try {
+      const registration = await SimpleWebAuthnBrowser.startRegistration(opts);
+      const resp = await fetch('/admin/enroll/' + token, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(registration),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({error: 'Server error'}));
+        alert(err.error || 'Registration failed');
+        return;
+      }
+      window.location.href = '/admin';
+    } catch (err) {
+      alert('Registration error: ' + (err.message || err));
+    }
+  });
+})();
+</script>
+</body>
+</html>

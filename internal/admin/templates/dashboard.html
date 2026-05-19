@@ -1,0 +1,51 @@
+{{template "base" .}}
+{{define "title"}}Dashboard{{end}}
+{{define "content"}}
+<header class="page-header">
+  <h1>Dashboard</h1>
+</header>
+
+<div class="stats">
+  <div class="stat-card">
+    <div class="label">Projects</div>
+    <div class="value">{{.ProjectCount}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Users</div>
+    <div class="value">{{.UserCount}}</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Recent Activity</h2>
+  {{if .Activity}}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Actor</th>
+          <th>Action</th>
+          <th>Project</th>
+          <th>Path</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Activity}}
+        <tr>
+          <td class="mono text-sm">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+          <td>{{if .ActorEmail}}{{.ActorEmail}}{{else}}<span class="text-muted">—</span>{{end}}</td>
+          <td><code>{{.Action}}</code></td>
+          <td>{{if .ProjectSlug}}<a href="/admin/projects/{{.ProjectSlug}}">{{.ProjectSlug}}</a>{{else}}<span class="text-muted">—</span>{{end}}</td>
+          <td class="mono text-sm">{{if .Path}}{{.Path}}{{else}}<span class="text-muted">—</span>{{end}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  <a href="/admin/audit" class="btn btn-secondary btn-sm">View full audit log</a>
+  {{else}}
+  <p class="text-muted text-sm">No activity recorded yet.</p>
+  {{end}}
+</div>
+{{end}}

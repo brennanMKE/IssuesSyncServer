@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"sync.sstools.co/internal/admin"
 	"sync.sstools.co/internal/api"
 	"sync.sstools.co/internal/auth"
 	"sync.sstools.co/internal/db"
@@ -176,6 +177,14 @@ func main() {
 	go hub.Run()
 	ws.StartGC(ctx, pool, 24)
 
+	// Build admin console handler.
+	adminHandler := admin.Handler(admin.AdminDeps{
+		Auth:    authSvc,
+		DB:      pool,
+		Hub:     hub,
+		BaseURL: cfg.BaseURL,
+	})
+
 	// Wire up HTTP router.
 	deps := api.Deps{
 		BuildSHA:      BuildSHA,
@@ -188,6 +197,7 @@ func main() {
 		S3Client:      s3Client,
 		Cache:         cache,
 		Hub:           hub,
+		AdminHandler:  adminHandler,
 	}
 	handler := api.NewRouter(deps)
 

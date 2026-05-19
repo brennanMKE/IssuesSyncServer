@@ -265,6 +265,12 @@ func (s *Service) JWTKey() []byte {
 	return s.jwtKey
 }
 
+// InviteKey returns the invite signing key. Used by the admin console to mint
+// and validate invite tokens.
+func (s *Service) InviteKey() []byte {
+	return s.inviteKey
+}
+
 // randBytes returns n cryptographically random bytes.
 func randBytes(n int) ([]byte, error) {
 	b := make([]byte, n)

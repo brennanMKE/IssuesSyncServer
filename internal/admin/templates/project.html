@@ -1,0 +1,39 @@
+{{template "base" .}}
+{{define "title"}}Project — {{.Project.Slug}}{{end}}
+{{define "content"}}
+<header class="page-header">
+  <h1><code>{{.Project.Slug}}</code></h1>
+  {{if .Project.ArchivedAt}}<span class="badge badge-disabled">Archived</span>{{else}}<span class="badge badge-active">Active</span>{{end}}
+  <div class="ml-auto flex gap-1">
+    <a href="/admin/projects/{{.Project.Slug}}/members" class="btn btn-secondary btn-sm">Members</a>
+    <a href="/admin/projects/{{.Project.Slug}}/files" class="btn btn-secondary btn-sm">Files</a>
+    <a href="/admin/projects" class="btn btn-secondary btn-sm">Back</a>
+  </div>
+</header>
+
+{{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+
+<div class="card">
+  <h2>Edit project</h2>
+  <form method="POST" action="/admin/projects/{{.Project.Slug}}">
+    <div class="field">
+      <label for="display_name">Display name</label>
+      <input type="text" id="display_name" name="display_name" value="{{.Project.DisplayName}}" required>
+    </div>
+    <div class="field">
+      <label for="repo_url">Repo URL (optional)</label>
+      <input type="text" id="repo_url" name="repo_url" value="{{.Project.RepoURL}}">
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+  </form>
+</div>
+
+{{if not .Project.ArchivedAt}}
+<div class="card">
+  <h2>Danger zone</h2>
+  <form method="POST" action="/admin/projects/{{.Project.Slug}}/archive">
+    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Archive this project? It will no longer appear to users.')">Archive project</button>
+  </form>
+</div>
+{{end}}
+{{end}}

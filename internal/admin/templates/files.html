@@ -1,0 +1,37 @@
+{{template "base" .}}
+{{define "title"}}Files — {{.Project.Slug}}{{end}}
+{{define "content"}}
+<header class="page-header">
+  <h1>Files — <code>{{.Project.Slug}}</code></h1>
+  <div class="ml-auto">
+    <a href="/admin/projects/{{.Project.Slug}}" class="btn btn-secondary btn-sm">Back to project</a>
+  </div>
+</header>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Path</th>
+        <th>Size</th>
+        <th>ETag</th>
+        <th>Content-Type</th>
+        <th>Modified</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Files}}
+      <tr>
+        <td class="mono">{{.Path}}</td>
+        <td class="text-sm text-muted">{{.Size}}</td>
+        <td class="mono text-sm">{{.ETag}}</td>
+        <td class="text-sm">{{if .ContentType}}{{.ContentType}}{{else}}<span class="text-muted">—</span>{{end}}</td>
+        <td class="text-sm text-muted">{{.ModifiedAt.Format "2006-01-02 15:04"}}</td>
+      </tr>
+      {{else}}
+      <tr><td colspan="5" class="text-muted text-sm">No files in this project.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login — IssuesSyncServer</title>
+  <link rel="stylesheet" href="/admin/static/style.css">
+  <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="card">
+    <h1>Sign in</h1>
+    {{if .Error}}
+    <div class="alert alert-error">{{.Error}}</div>
+    {{end}}
+    <form id="login-form">
+      <div class="field">
+        <label for="email">Email address</label>
+        <input type="email" id="email" name="email" required autofocus placeholder="you@example.com">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%">Continue with PassKey</button>
+    </form>
+    <p class="text-muted text-sm mt-1">You will be prompted to authenticate with your device passkey.</p>
+  </div>
+</div>
+<script>
+(function() {
+  const form = document.getElementById('login-form');
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const email = document.getElementById('email').value;
+    try {
+      // 1. Begin assertion — get challenge from server
+      const beginResp = await fetch('/admin/login', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email}),
+      });
+      if (!beginResp.ok) {
+        const err = await beginResp.json().catch(() => ({error: 'Server error'}));
+        alert(err.error || 'Failed to begin authentication');
+        return;
+      }
+      const opts = await beginResp.json();
+
+      // 2. Prompt user for passkey
+      const assertion = await SimpleWebAuthnBrowser.startAuthentication(opts);
+
+      // 3. Send response to complete endpoint
+      const finishResp = await fetch('/admin/login/complete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(assertion),
+      });
+      if (!finishResp.ok) {
+        const err = await finishResp.json().catch(() => ({error: 'Server error'}));
+        alert(err.error || 'Authentication failed');
+        return;
+      }
+      window.location.href = '/admin';
+    } catch (err) {
+      alert('Authentication error: ' + (err.message || err));
+    }
+  });
+})();
+</script>
+</body>
+</html>

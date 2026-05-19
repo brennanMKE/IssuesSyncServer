@@ -1,0 +1,67 @@
+{{template "base" .}}
+{{define "title"}}Projects{{end}}
+{{define "content"}}
+<header class="page-header">
+  <h1>Projects</h1>
+</header>
+
+{{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+
+<div class="card">
+  <h2>Create project</h2>
+  <form method="POST" action="/admin/projects">
+    <div class="flex gap-1 align-center" style="flex-wrap:wrap">
+      <div class="field" style="min-width:130px;margin-bottom:0">
+        <label for="slug">Slug</label>
+        <input type="text" id="slug" name="slug" required placeholder="my-project" pattern="[a-z0-9\-]+" title="lowercase letters, digits, hyphens">
+      </div>
+      <div class="field" style="flex:1;min-width:180px;margin-bottom:0">
+        <label for="display_name">Display name</label>
+        <input type="text" id="display_name" name="display_name" required placeholder="My Project">
+      </div>
+      <div class="field" style="flex:1;min-width:180px;margin-bottom:0">
+        <label for="repo_url">Repo URL (optional)</label>
+        <input type="text" id="repo_url" name="repo_url" placeholder="https://github.com/…">
+      </div>
+      <div style="align-self:flex-end">
+        <button type="submit" class="btn btn-primary">Create</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Slug</th>
+        <th>Display Name</th>
+        <th>Repo</th>
+        <th>Created</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Projects}}
+      <tr>
+        <td><a href="/admin/projects/{{.Slug}}"><code>{{.Slug}}</code></a></td>
+        <td>{{.DisplayName}}</td>
+        <td class="text-sm">{{if .RepoURL}}<a href="{{.RepoURL}}" target="_blank" rel="noopener">{{.RepoURL}}</a>{{else}}<span class="text-muted">—</span>{{end}}</td>
+        <td class="text-sm text-muted">{{.CreatedAt.Format "2006-01-02"}}</td>
+        <td>{{if .ArchivedAt}}<span class="badge badge-disabled">Archived</span>{{else}}<span class="badge badge-active">Active</span>{{end}}</td>
+        <td>
+          {{if not .ArchivedAt}}
+          <form method="POST" action="/admin/projects/{{.Slug}}/archive" style="display:inline">
+            <button type="submit" class="btn btn-secondary btn-sm" onclick="return confirm('Archive this project?')">Archive</button>
+          </form>
+          {{end}}
+        </td>
+      </tr>
+      {{else}}
+      <tr><td colspan="6" class="text-muted text-sm">No projects yet.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}

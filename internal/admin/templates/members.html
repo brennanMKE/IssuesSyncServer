@@ -1,0 +1,72 @@
+{{template "base" .}}
+{{define "title"}}Members — {{.Project.Slug}}{{end}}
+{{define "content"}}
+<header class="page-header">
+  <h1>Members — <code>{{.Project.Slug}}</code></h1>
+  <div class="ml-auto">
+    <a href="/admin/projects/{{.Project.Slug}}" class="btn btn-secondary btn-sm">Back to project</a>
+  </div>
+</header>
+
+{{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+
+<div class="card">
+  <h2>Add member</h2>
+  <form method="POST" action="/admin/projects/{{.Project.Slug}}/members">
+    <div class="flex gap-1 align-center" style="flex-wrap:wrap">
+      <div class="field" style="flex:1;min-width:200px;margin-bottom:0">
+        <label for="user_id">User ID (UUID)</label>
+        <input type="text" id="user_id" name="user_id" required placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+      </div>
+      <div class="field" style="min-width:120px;margin-bottom:0">
+        <label for="role">Role</label>
+        <select id="role" name="role">
+          <option value="viewer">Viewer</option>
+          <option value="editor" selected>Editor</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div style="align-self:flex-end">
+        <button type="submit" class="btn btn-primary">Add</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Email</th>
+        <th>Display Name</th>
+        <th>Role</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Members}}
+      <tr>
+        <td><a href="/admin/users/{{.UserID}}">{{.Email}}</a></td>
+        <td>{{if .DisplayName}}{{.DisplayName}}{{else}}<span class="text-muted">—</span>{{end}}</td>
+        <td>
+          <form method="POST" action="/admin/projects/{{$.Project.Slug}}/members/{{.UserID}}/role" style="display:inline">
+            <select name="role" onchange="this.form.submit()">
+              <option value="viewer"{{if eq .Role "viewer"}} selected{{end}}>Viewer</option>
+              <option value="editor"{{if eq .Role "editor"}} selected{{end}}>Editor</option>
+              <option value="admin"{{if eq .Role "admin"}} selected{{end}}>Admin</option>
+            </select>
+          </form>
+        </td>
+        <td>
+          <form method="POST" action="/admin/projects/{{$.Project.Slug}}/members/{{.UserID}}/remove" style="display:inline">
+            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remove this member?')">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {{else}}
+      <tr><td colspan="4" class="text-muted text-sm">No members yet.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}

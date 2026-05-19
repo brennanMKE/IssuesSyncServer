@@ -22,6 +22,7 @@ type Deps struct {
 	S3            *s3.Client
 	S3Bucket      string
 	Hub           *ws.Hub
+	AdminHandler  http.Handler
 	// Legacy fields kept for compatibility during the transition from Phase A.
 	Pool     *pgxpool.Pool
 	S3Client *storage.S3Client
@@ -74,9 +75,15 @@ func NewRouter(deps Deps) http.Handler {
 	// Phase E — WebSocket event stream (auth via ?token= query param).
 	mux.Handle("GET /v1/events", ws.Handler(deps.Hub, deps.Auth.JWTKey()))
 
-	// Catch-all stubs for unimplemented /v1/* and /admin/* routes.
+	// Catch-all stub for unimplemented /v1/* routes.
 	mux.HandleFunc("/v1/", stubNotImplemented)
-	mux.HandleFunc("/admin/", stubNotImplemented)
+
+	// Admin console — delegate to admin.Handler.
+	if deps.AdminHandler != nil {
+		mux.Handle("/admin/", deps.AdminHandler)
+	} else {
+		mux.HandleFunc("/admin/", stubNotImplemented)
+	}
 
 	return mux
 }

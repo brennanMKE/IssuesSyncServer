@@ -1,0 +1,32 @@
+{{define "base"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{block "title" .}}Admin{{end}} — IssuesSyncServer</title>
+  <link rel="stylesheet" href="/admin/static/style.css">
+  <script src="https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js" defer></script>
+</head>
+<body>
+<div class="layout">
+  <nav>
+    <div class="brand">issued</div>
+    <a href="/admin">Dashboard</a>
+    <a href="/admin/users">Users</a>
+    <a href="/admin/projects">Projects</a>
+    <div class="nav-sep"></div>
+    <a href="/admin/audit">Audit Log</a>
+    <a href="/admin/sessions">Sessions</a>
+    <a href="/admin/devices">Devices</a>
+    <div class="nav-sep"></div>
+    <form method="POST" action="/admin/logout" style="margin:0">
+      <button type="submit" class="btn btn-secondary btn-sm" style="width:100%;text-align:left">Logout</button>
+    </form>
+  </nav>
+  <main>
+    {{block "content" .}}{{end}}
+  </main>
+</div>
+</body>
+</html>
+{{end}}

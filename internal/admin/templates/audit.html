@@ -1,0 +1,57 @@
+{{template "base" .}}
+{{define "title"}}Audit Log{{end}}
+{{define "content"}}
+<header class="page-header">
+  <h1>Audit Log</h1>
+  <span class="text-muted text-sm">{{.Total}} entries</span>
+</header>
+
+<form method="GET" action="/admin/audit" class="toolbar">
+  <input type="text" name="user" value="{{.Filter.UserID}}" placeholder="User ID…" style="width:240px">
+  <input type="text" name="project" value="{{.Filter.ProjectID}}" placeholder="Project ID…" style="width:240px">
+  <input type="text" name="action" value="{{.Filter.Action}}" placeholder="Action…" style="width:160px">
+  <button type="submit" class="btn btn-secondary">Filter</button>
+  <a href="/admin/audit" class="btn btn-secondary">Clear</a>
+</form>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>When</th>
+        <th>Actor</th>
+        <th>Action</th>
+        <th>Project</th>
+        <th>Path</th>
+        <th>IP</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Rows}}
+      <tr>
+        <td class="mono text-sm">{{.CreatedAt.Format "2006-01-02 15:04:05"}}</td>
+        <td class="text-sm">{{if .ActorEmail}}{{.ActorEmail}}{{else}}<span class="text-muted">—</span>{{end}}</td>
+        <td><code>{{.Action}}</code></td>
+        <td class="text-sm">{{if .ProjectSlug}}<a href="/admin/projects/{{.ProjectSlug}}">{{.ProjectSlug}}</a>{{else}}<span class="text-muted">—</span>{{end}}</td>
+        <td class="mono text-sm">{{if .Path}}{{.Path}}{{else}}<span class="text-muted">—</span>{{end}}</td>
+        <td class="text-sm text-muted">{{if .IP}}{{.IP}}{{else}}—{{end}}</td>
+      </tr>
+      {{else}}
+      <tr><td colspan="6" class="text-muted text-sm">No audit entries found.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+
+{{if gt .TotalPages 1}}
+<div class="pagination">
+  {{if gt .Page 1}}
+  <a href="?page={{dec .Page}}&user={{.Filter.UserID}}&project={{.Filter.ProjectID}}&action={{.Filter.Action}}">Previous</a>
+  {{end}}
+  <span class="current">Page {{.Page}} of {{.TotalPages}}</span>
+  {{if lt .Page .TotalPages}}
+  <a href="?page={{inc .Page}}&user={{.Filter.UserID}}&project={{.Filter.ProjectID}}&action={{.Filter.Action}}">Next</a>
+  {{end}}
+</div>
+{{end}}
+{{end}}
