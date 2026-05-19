@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"sync.sstools.co/internal/api"
+	"sync.sstools.co/internal/auth"
 	"sync.sstools.co/internal/db"
 	"sync.sstools.co/internal/storage"
 	"sync.sstools.co/internal/ws"
@@ -29,10 +30,10 @@ type Config struct {
 	DatabaseURL      string
 	S3Bucket         string
 	S3Region         string
-	JWTSigningKey    string
-	InviteSigningKey string
+	JWTSigningKey    []byte
+	InviteSigningKey []byte
 	SMTPHost         string
-	SMTPPort         int
+	SMTPPort         string
 	SMTPUser         string
 	SMTPPass         string
 	SMTPFrom         string
@@ -63,25 +64,26 @@ func loadConfig() (Config, error) {
 	cfg.DatabaseURL = required("DATABASE_URL")
 	cfg.S3Bucket = required("S3_BUCKET")
 	cfg.S3Region = required("S3_REGION")
-	cfg.JWTSigningKey = required("JWT_SIGNING_KEY")
-	cfg.InviteSigningKey = required("INVITE_SIGNING_KEY")
 	cfg.SMTPHost = required("SMTP_HOST")
+	cfg.SMTPPort = required("SMTP_PORT")
 	cfg.SMTPUser = required("SMTP_USER")
 	cfg.SMTPPass = required("SMTP_PASS")
 	cfg.SMTPFrom = required("SMTP_FROM")
 
-	smtpPortStr := required("SMTP_PORT")
-	if len(missing) == 0 {
-		p, err := strconv.Atoi(smtpPortStr)
-		if err != nil {
-			return cfg, fmt.Errorf("SMTP_PORT must be an integer: %w", err)
-		}
-		cfg.SMTPPort = p
-	}
+	jwtKeyStr := required("JWT_SIGNING_KEY")
+	inviteKeyStr := required("INVITE_SIGNING_KEY")
 
 	if len(missing) > 0 {
 		return cfg, fmt.Errorf("missing required environment variables: %v", missing)
 	}
+
+	// Validate SMTP_PORT is numeric.
+	if _, err := strconv.Atoi(cfg.SMTPPort); err != nil {
+		return cfg, fmt.Errorf("SMTP_PORT must be an integer: %w", err)
+	}
+
+	cfg.JWTSigningKey = []byte(jwtKeyStr)
+	cfg.InviteSigningKey = []byte(inviteKeyStr)
 
 	// Optional vars
 	cfg.S3Endpoint = os.Getenv("S3_ENDPOINT")
@@ -131,6 +133,25 @@ func main() {
 	}
 	slog.Info("migrations complete")
 
+	// Bootstrap first admin user.
+	if err := auth.Bootstrap(ctx, pool, cfg.AdminEmail, cfg.InviteSigningKey, cfg.BaseURL); err != nil {
+		slog.Error("bootstrap failed", "err", err)
+		os.Exit(1)
+	}
+
+	// Build auth service.
+	authSvc, err := auth.NewService(auth.Config{
+		RPID:          cfg.RPID,
+		RPDisplayName: cfg.RPDisplayName,
+		RPOrigins:     []string{cfg.BaseURL},
+		JWTKey:        cfg.JWTSigningKey,
+		InviteKey:     cfg.InviteSigningKey,
+	}, pool)
+	if err != nil {
+		slog.Error("failed to create auth service", "err", err)
+		os.Exit(1)
+	}
+
 	// Build S3 client.
 	s3Cfg := storage.S3Config{
 		Bucket:          cfg.S3Bucket,
@@ -156,11 +177,13 @@ func main() {
 
 	// Wire up HTTP router.
 	deps := api.Deps{
+		BuildSHA: BuildSHA,
+		Auth:     authSvc,
+		DB:       pool,
 		Pool:     pool,
 		S3Client: s3Client,
 		Cache:    cache,
 		Hub:      hub,
-		BuildSHA: BuildSHA,
 	}
 	handler := api.NewRouter(deps)
 
