@@ -259,6 +259,12 @@ func (s *Service) loadCredentials(ctx context.Context, userID uuid.UUID) ([]weba
 	return creds, rows.Err()
 }
 
+// JWTKey returns the JWT signing key. Used by the HTTP router to pass the key
+// to the RequireAuth middleware without exposing the full Service.
+func (s *Service) JWTKey() []byte {
+	return s.jwtKey
+}
+
 // randBytes returns n cryptographically random bytes.
 func randBytes(n int) ([]byte, error) {
 	b := make([]byte, n)

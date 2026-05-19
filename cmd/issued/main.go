@@ -177,13 +177,16 @@ func main() {
 
 	// Wire up HTTP router.
 	deps := api.Deps{
-		BuildSHA: BuildSHA,
-		Auth:     authSvc,
-		DB:       pool,
-		Pool:     pool,
-		S3Client: s3Client,
-		Cache:    cache,
-		Hub:      hub,
+		BuildSHA:      BuildSHA,
+		RPDisplayName: cfg.RPDisplayName,
+		Auth:          authSvc,
+		DB:            pool,
+		S3:            s3Client.Client,
+		S3Bucket:      cfg.S3Bucket,
+		Pool:          pool,
+		S3Client:      s3Client,
+		Cache:         cache,
+		Hub:           hub,
 	}
 	handler := api.NewRouter(deps)
 
