@@ -49,6 +49,8 @@ func NewRouter(deps Deps) http.Handler {
 		S3:            deps.S3,
 		S3Bucket:      deps.S3Bucket,
 		RPDisplayName: deps.RPDisplayName,
+		Cache:         deps.Cache,
+		Auth:          deps.Auth,
 	}
 	requireAuth := auth.RequireAuth(deps.Auth.JWTKey(), deps.DB)
 
@@ -59,6 +61,14 @@ func NewRouter(deps Deps) http.Handler {
 	mux.Handle("GET /v1/folders/{folderId}/issues", requireAuth(apiv1.IssuesHandler(v1deps)))
 	mux.Handle("GET /v1/folders/{folderId}/issues/{id}", requireAuth(apiv1.IssueByIDHandler(v1deps)))
 	mux.Handle("GET /v1/folders/{folderId}/issues/{id}/attachments/{name}", requireAuth(apiv1.AttachmentHandler(v1deps)))
+
+	// Phase D — Write API
+	mux.Handle("PUT /v1/folders/{folderId}/issues/{id}", requireAuth(apiv1.PutIssueHandler(v1deps)))
+	mux.Handle("POST /v1/folders/{folderId}/issues", requireAuth(apiv1.PostIssueHandler(v1deps)))
+	mux.Handle("DELETE /v1/folders/{folderId}/issues/{id}", requireAuth(apiv1.DeleteIssueHandler(v1deps)))
+	mux.Handle("PUT /v1/folders/{folderId}/issues/{id}/attachments/{name}", requireAuth(apiv1.PutAttachmentHandler(v1deps)))
+	mux.Handle("DELETE /v1/folders/{folderId}/issues/{id}/attachments/{name}", requireAuth(apiv1.DeleteAttachmentHandler(v1deps)))
+	mux.Handle("PUT /v1/folders/{folderId}/project.json", requireAuth(apiv1.PutProjectJSONHandler(v1deps)))
 
 	// Catch-all stubs for unimplemented /v1/* and /admin/* routes.
 	mux.HandleFunc("/v1/", stubNotImplemented)

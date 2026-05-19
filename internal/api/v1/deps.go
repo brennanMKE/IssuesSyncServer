@@ -7,14 +7,18 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"sync.sstools.co/internal/auth"
+	"sync.sstools.co/internal/storage"
 )
 
 // Deps holds the dependencies required by all v1 handlers.
 type Deps struct {
-	DB           *pgxpool.Pool
-	S3           *s3.Client
-	S3Bucket     string
+	DB            *pgxpool.Pool
+	S3            *s3.Client
+	S3Bucket      string
 	RPDisplayName string
+	Cache         *storage.LRUCache
+	Auth          *auth.Service
 }
 
 // writeError writes a JSON error response with the given status code and message.

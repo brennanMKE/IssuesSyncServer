@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,6 +11,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"sync.sstools.co/internal/wire"
 )
+
+// ErrETagConflict is returned when an optimistic concurrency check fails.
+var ErrETagConflict = errors.New("storage: etag conflict")
 
 // ProjectsForUser returns FolderInfo for all projects the user is a member of
 // (or all projects if global admin).
@@ -170,4 +174,143 @@ func UserByID(ctx context.Context, db *pgxpool.Pool, userID uuid.UUID) (globalRo
 		return "", fmt.Errorf("storage: user by id: %w", err)
 	}
 	return globalRole, nil
+}
+
+// ProjectRole returns the role of userID in the given project.
+// Global admins always get "admin". Returns ("", pgx.ErrNoRows) if not a member.
+func ProjectRole(ctx context.Context, db *pgxpool.Pool, userID, projectID uuid.UUID) (role string, err error) {
+	// Check global admin first.
+	var globalRole string
+	err = db.QueryRow(ctx,
+		`SELECT global_role FROM users WHERE id = $1`,
+		userID,
+	).Scan(&globalRole)
+	if err != nil {
+		return "", fmt.Errorf("storage: project role lookup user: %w", err)
+	}
+	if globalRole == "admin" {
+		return "admin", nil
+	}
+
+	// Look up per-project role.
+	err = db.QueryRow(ctx,
+		`SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2`,
+		projectID,
+		userID,
+	).Scan(&role)
+	if err != nil {
+		return "", fmt.Errorf("storage: project role: %w", err)
+	}
+	return role, nil
+}
+
+// UpsertFile inserts or updates a file row with ETag concurrency checking.
+//
+// If ifMatchEtag is non-empty it is treated as an If-Match update: the row
+// must already exist with that exact ETag, otherwise ErrETagConflict is returned.
+//
+// If ifMatchEtag is empty (If-None-Match: * create) the row must not exist;
+// if it already exists ErrETagConflict is returned.
+func UpsertFile(ctx context.Context, db *pgxpool.Pool, projectID uuid.UUID, path, etag string, size int64, contentType string, modifiedBy uuid.UUID, ifMatchEtag string) error {
+	if ifMatchEtag != "" {
+		// Update-existing path: atomically replace the row only if ETag matches.
+		tag, err := db.Exec(ctx,
+			`UPDATE files
+			 SET etag=$3, size=$4, content_type=$5, modified_at=now(), modified_by=$6
+			 WHERE project_id=$1 AND path=$2 AND etag=$7`,
+			projectID, path, etag, size, contentType, modifiedBy, ifMatchEtag,
+		)
+		if err != nil {
+			return fmt.Errorf("storage: upsert file update: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrETagConflict
+		}
+		return nil
+	}
+
+	// Create-new path (If-None-Match: *): insert, skip if already exists.
+	tag, err := db.Exec(ctx,
+		`INSERT INTO files (project_id, path, etag, size, content_type, modified_by)
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 ON CONFLICT (project_id, path) DO NOTHING`,
+		projectID, path, etag, size, contentType, modifiedBy,
+	)
+	if err != nil {
+		return fmt.Errorf("storage: upsert file insert: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrETagConflict
+	}
+	return nil
+}
+
+// DeleteFile removes a file row after verifying the ETag matches.
+// Returns ErrETagConflict if the row exists but the ETag does not match.
+// Returns pgx.ErrNoRows if the row does not exist.
+func DeleteFile(ctx context.Context, db *pgxpool.Pool, projectID uuid.UUID, path, ifMatchEtag string) error {
+	tag, err := db.Exec(ctx,
+		`DELETE FROM files WHERE project_id=$1 AND path=$2 AND etag=$3`,
+		projectID, path, ifMatchEtag,
+	)
+	if err != nil {
+		return fmt.Errorf("storage: delete file: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		// Distinguish: does the row exist at all?
+		var exists bool
+		_ = db.QueryRow(ctx,
+			`SELECT EXISTS(SELECT 1 FROM files WHERE project_id=$1 AND path=$2)`,
+			projectID, path,
+		).Scan(&exists)
+		if !exists {
+			return pgx.ErrNoRows
+		}
+		return ErrETagConflict
+	}
+	return nil
+}
+
+// FileExists checks whether a file row exists for the given project and path.
+// Returns (etag, true, nil) if found, ("", false, nil) if not found.
+func FileExists(ctx context.Context, db *pgxpool.Pool, projectID uuid.UUID, path string) (etag string, exists bool, err error) {
+	err = db.QueryRow(ctx,
+		`SELECT etag FROM files WHERE project_id=$1 AND path=$2`,
+		projectID, path,
+	).Scan(&etag)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf("storage: file exists: %w", err)
+	}
+	return etag, true, nil
+}
+
+// WriteAuditLog appends one row to the audit_log table.
+func WriteAuditLog(ctx context.Context, db *pgxpool.Pool, actor uuid.UUID, action, projectID, path, etagBefore, etagAfter, ip, userAgent string) error {
+	var projID *uuid.UUID
+	if projectID != "" {
+		pid, err := uuid.Parse(projectID)
+		if err == nil {
+			projID = &pid
+		}
+	}
+	_, err := db.Exec(ctx,
+		`INSERT INTO audit_log (actor, action, project_id, path, etag_before, etag_after, ip, user_agent, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7::inet, $8, now())`,
+		actor, action, projID, path, nullStr(etagBefore), nullStr(etagAfter), nullStr(ip), userAgent,
+	)
+	if err != nil {
+		return fmt.Errorf("storage: write audit log: %w", err)
+	}
+	return nil
+}
+
+// nullStr converts an empty string to nil so pgx stores NULL rather than an empty string.
+func nullStr(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	return s
 }
