@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"sync.sstools.co/internal/auth"
 	"sync.sstools.co/internal/storage"
+	"sync.sstools.co/internal/ws"
 )
 
 // Deps holds the dependencies required by all v1 handlers.
@@ -19,6 +20,7 @@ type Deps struct {
 	RPDisplayName string
 	Cache         *storage.LRUCache
 	Auth          *auth.Service
+	Hub           *ws.Hub
 }
 
 // writeError writes a JSON error response with the given status code and message.

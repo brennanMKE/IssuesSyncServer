@@ -51,6 +51,7 @@ func NewRouter(deps Deps) http.Handler {
 		RPDisplayName: deps.RPDisplayName,
 		Cache:         deps.Cache,
 		Auth:          deps.Auth,
+		Hub:           deps.Hub,
 	}
 	requireAuth := auth.RequireAuth(deps.Auth.JWTKey(), deps.DB)
 
@@ -69,6 +70,9 @@ func NewRouter(deps Deps) http.Handler {
 	mux.Handle("PUT /v1/folders/{folderId}/issues/{id}/attachments/{name}", requireAuth(apiv1.PutAttachmentHandler(v1deps)))
 	mux.Handle("DELETE /v1/folders/{folderId}/issues/{id}/attachments/{name}", requireAuth(apiv1.DeleteAttachmentHandler(v1deps)))
 	mux.Handle("PUT /v1/folders/{folderId}/project.json", requireAuth(apiv1.PutProjectJSONHandler(v1deps)))
+
+	// Phase E — WebSocket event stream (auth via ?token= query param).
+	mux.Handle("GET /v1/events", ws.Handler(deps.Hub, deps.Auth.JWTKey()))
 
 	// Catch-all stubs for unimplemented /v1/* and /admin/* routes.
 	mux.HandleFunc("/v1/", stubNotImplemented)

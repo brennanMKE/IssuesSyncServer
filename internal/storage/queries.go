@@ -307,6 +307,19 @@ func WriteAuditLog(ctx context.Context, db *pgxpool.Pool, actor uuid.UUID, actio
 	return nil
 }
 
+// AppendEvent inserts a row into the events table and returns its auto-assigned id.
+func AppendEvent(ctx context.Context, db *pgxpool.Pool, projectID uuid.UUID, actor uuid.UUID, payload []byte) (int64, error) {
+	var id int64
+	err := db.QueryRow(ctx,
+		`INSERT INTO events (project_id, actor, payload) VALUES ($1, $2, $3) RETURNING id`,
+		projectID, actor, payload,
+	).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("storage: append event: %w", err)
+	}
+	return id, nil
+}
+
 // nullStr converts an empty string to nil so pgx stores NULL rather than an empty string.
 func nullStr(s string) interface{} {
 	if s == "" {

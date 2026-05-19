@@ -172,8 +172,9 @@ func main() {
 	cache := storage.NewLRUCache(64 * 1024 * 1024) // 64 MB
 
 	// Build WebSocket hub.
-	hub := ws.NewHub()
+	hub := ws.NewHub(pool)
 	go hub.Run()
+	ws.StartGC(ctx, pool, 24)
 
 	// Wire up HTTP router.
 	deps := api.Deps{

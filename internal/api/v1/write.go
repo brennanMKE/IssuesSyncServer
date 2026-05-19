@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -9,9 +10,12 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"sync.sstools.co/internal/storage"
+	"sync.sstools.co/internal/wire"
 )
 
 const maxBodySize = 25 * 1024 * 1024 // 25 MB
@@ -68,6 +72,25 @@ func writeETagJSON(w http.ResponseWriter, status int, etag string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"etag": etag})
+}
+
+// nowTS returns the current UTC time formatted as RFC 3339 with milliseconds.
+func nowTS() string {
+	return time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+}
+
+// fanOutEvent persists the event and broadcasts it via the hub. Errors are
+// logged but not surfaced to the caller (the write already succeeded).
+func fanOutEvent(deps Deps, projectID uuid.UUID, actorID uuid.UUID, payload []byte) {
+	if deps.Hub == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := storage.AppendEvent(ctx, deps.DB, projectID, actorID, payload); err != nil {
+		slog.Warn("write: append event", "err", err)
+	}
+	deps.Hub.Broadcast(projectID.String(), payload)
 }
 
 // PutIssueHandler handles PUT /v1/folders/{folderId}/issues/{id}.
@@ -143,6 +166,22 @@ func PutIssueHandler(deps Deps) http.HandlerFunc {
 
 		_ = storage.WriteAuditLog(r.Context(), deps.DB, userID, "put_issue",
 			folderID.String(), path, oldETag, newETag, clientIP(r), r.UserAgent())
+
+		op := "updated"
+		if isCreate {
+			op = "created"
+		}
+		etagCopy := newETag
+		ev, _ := json.Marshal(wire.IssueChangedEvent{
+			Type:     "issueChanged",
+			FolderID: folderID.String(),
+			IssueID:  issueID,
+			Op:       op,
+			ETag:     &etagCopy,
+			Actor:    userID.String(),
+			Ts:       nowTS(),
+		})
+		fanOutEvent(deps, folderID, userID, ev)
 
 		writeETagJSON(w, http.StatusOK, newETag)
 	}
@@ -225,6 +264,18 @@ func PostIssueHandler(deps Deps) http.HandlerFunc {
 		_ = storage.WriteAuditLog(r.Context(), deps.DB, userID, "post_issue",
 			folderID.String(), path, "", newETag, clientIP(r), r.UserAgent())
 
+		etagCopy := newETag
+		ev, _ := json.Marshal(wire.IssueChangedEvent{
+			Type:     "issueChanged",
+			FolderID: folderID.String(),
+			IssueID:  req.ID,
+			Op:       "created",
+			ETag:     &etagCopy,
+			Actor:    userID.String(),
+			Ts:       nowTS(),
+		})
+		fanOutEvent(deps, folderID, userID, ev)
+
 		writeETagJSON(w, http.StatusCreated, newETag)
 	}
 }
@@ -283,6 +334,17 @@ func DeleteIssueHandler(deps Deps) http.HandlerFunc {
 
 		_ = storage.WriteAuditLog(r.Context(), deps.DB, userID, "delete_issue",
 			folderID.String(), path, ifMatch, "", clientIP(r), r.UserAgent())
+
+		ev, _ := json.Marshal(wire.IssueChangedEvent{
+			Type:     "issueChanged",
+			FolderID: folderID.String(),
+			IssueID:  issueID,
+			Op:       "deleted",
+			ETag:     nil,
+			Actor:    userID.String(),
+			Ts:       nowTS(),
+		})
+		fanOutEvent(deps, folderID, userID, ev)
 
 		w.WriteHeader(http.StatusNoContent)
 	}
@@ -366,6 +428,23 @@ func PutAttachmentHandler(deps Deps) http.HandlerFunc {
 		_ = storage.WriteAuditLog(r.Context(), deps.DB, userID, "put_attachment",
 			folderID.String(), path, oldETag, newETag, clientIP(r), r.UserAgent())
 
+		attachOp := "updated"
+		if isCreate {
+			attachOp = "created"
+		}
+		attachETag := newETag
+		ev, _ := json.Marshal(wire.AttachmentChangedEvent{
+			Type:     "attachmentChanged",
+			FolderID: folderID.String(),
+			IssueID:  issueID,
+			Name:     name,
+			Op:       attachOp,
+			ETag:     &attachETag,
+			Actor:    userID.String(),
+			Ts:       nowTS(),
+		})
+		fanOutEvent(deps, folderID, userID, ev)
+
 		status := http.StatusOK
 		if isCreate {
 			status = http.StatusCreated
@@ -428,6 +507,18 @@ func DeleteAttachmentHandler(deps Deps) http.HandlerFunc {
 
 		_ = storage.WriteAuditLog(r.Context(), deps.DB, userID, "delete_attachment",
 			folderID.String(), path, "", "", clientIP(r), r.UserAgent())
+
+		ev, _ := json.Marshal(wire.AttachmentChangedEvent{
+			Type:     "attachmentChanged",
+			FolderID: folderID.String(),
+			IssueID:  issueID,
+			Name:     name,
+			Op:       "deleted",
+			ETag:     nil,
+			Actor:    userID.String(),
+			Ts:       nowTS(),
+		})
+		fanOutEvent(deps, folderID, userID, ev)
 
 		w.WriteHeader(http.StatusNoContent)
 	}
@@ -500,6 +591,16 @@ func PutProjectJSONHandler(deps Deps) http.HandlerFunc {
 
 		_ = storage.WriteAuditLog(r.Context(), deps.DB, userID, "put_project_json",
 			folderID.String(), path, oldETag, newETag, clientIP(r), r.UserAgent())
+
+		metaETag := newETag
+		ev, _ := json.Marshal(wire.ProjectMetaChangedEvent{
+			Type:     "projectMetaChanged",
+			FolderID: folderID.String(),
+			ETag:     &metaETag,
+			Actor:    userID.String(),
+			Ts:       nowTS(),
+		})
+		fanOutEvent(deps, folderID, userID, ev)
 
 		writeETagJSON(w, http.StatusOK, newETag)
 	}
