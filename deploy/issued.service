@@ -1,0 +1,16 @@
+[Unit]
+Description=issued — IssuesSyncServer
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=issued
+EnvironmentFile=/etc/issued/env
+ExecStart=/usr/local/bin/issued
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
